@@ -34,8 +34,8 @@ def handle_invalid_usage(error):
 def sitgcbgcemap():
     removed_person = queue.dequeue()
 
-    account_sid = ''
-    auth_token = ''
+    account_sid = os.environ.get('ACCOUNTSID')
+    auth_token = os.environ.get('TOKEN')
     client = Client(account_sid, auth_token)
 
     message = client.messages.create(
