@@ -7,7 +7,8 @@ from flask_migrate import Migrate
 from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
-from models import db, Person
+from models import db, Person, Queue
+from twilio.rest import Client
 
 app = Flask(__name__)
 app.url_map.strict_slashes = False
@@ -17,86 +18,69 @@ MIGRATE = Migrate(app, db)
 db.init_app(app)
 CORS(app)
 
+queue = Queue()
+
 @app.errorhandler(APIException)
 def handle_invalid_usage(error):
     return jsonify(error.to_dict()), error.status_code
 
-@app.route('/')
+@app.route('/next')
 def sitemap():
+    removed_person = queue.dequeue()
+    account_sid = 'AC74597789a998d190319007e4bd2a36ad'
+    auth_token = '8102a60f2115a7a6cbf6ef740357a58c'
+    client = Client(account_sid, auth_token)
+
+    message = client.messages.create(
+                    body='Hi there!',
+                    from_='+12053154250',to= removed_person["phone"]
+                )
+
     return generate_sitemap(app)
 
-@app.route('/person', methods=['POST', 'GET'])
-def handle_person():
-    """
-    Create person and retrieve all persons
-    """
+@app.route('/new', methods=['POST'])
+def addNewPerson():
 
-    # POST request
-    if request.method == 'POST':
-        body = request.get_json()
+    body = request.get_json()
+    if body is None:
+        raise APIException("You need to specify the request body as a json object", status_code=400)
+    if 'name' not in body:
+        raise APIException('You need to specify the name', status_code=400)
+    if 'email' not in body:
+        raise APIException('You need to specify the email', status_code=400)
+    if 'phone' not in body:
+        raise APIException('You need to specify the phone number', status_code=400)
+    if body["phone"][-1] != "+1" and len(body["phone"]) != 12:
+        raise APIException('Phone number should have 11 numbers and start with +1', status_code=400)
+    queue.enqueue(body)
+    return "ok", 200
 
-        if body is None:
-            raise APIException("You need to specify the request body as a json object", status_code=400)
-        if 'username' not in body:
-            raise APIException('You need to specify the username', status_code=400)
-        if 'email' not in body:
-            raise APIException('You need to specify the email', status_code=400)
+@app.route('/sms/:phone')
+def handle_person(item, phone):
+    # Your Account Sid and Auth Token from twilio.com/console
+    # DANGER! This is insecure. See http://twil.io/secure
+    account_sid = 'AC74597789a998d190319007e4bd2a36ad'
+    auth_token = '8102a60f2115a7a6cbf6ef740357a58c'
+    client = Client(account_sid, auth_token)
 
-        user1 = Person(username=body['username'], email=body['email'])
-        db.session.add(user1)
-        db.session.commit()
-        return "ok", 200
+    message = client.messages.create(
+                    body='Hi there!',
+                    from_='+12053154250',to= item["phone"]
+                )
 
-    # GET request
-    if request.method == 'GET':
-        all_people = Person.query.all()
-        all_people = list(map(lambda x: x.serialize(), all_people))
-        return jsonify(all_people), 200
-
-    return "Invalid Method", 404
+@app.route('/all')
+def getAllPeople():
+    return jsonify(queue.get_queue())
 
 
-@app.route('/person/<int:person_id>', methods=['PUT', 'GET', 'DELETE'])
-def get_single_person(person_id):
-    """
-    Single person
-    """
 
-    # PUT request
-    if request.method == 'PUT':
-        body = request.get_json()
-        if body is None:
-            raise APIException("You need to specify the request body as a json object", status_code=400)
 
-        user1 = Person.query.get(person_id)
-        if user1 is None:
-            raise APIException('User not found', status_code=404)
 
-        if "username" in body:
-            user1.username = body["username"]
-        if "email" in body:
-            user1.email = body["email"]
-        db.session.commit()
 
-        return jsonify(user1.serialize()), 200
 
-    # GET request
-    if request.method == 'GET':
-        user1 = Person.query.get(person_id)
-        if user1 is None:
-            raise APIException('User not found', status_code=404)
-        return jsonify(user1.serialize()), 200
 
-    # DELETE request
-    if request.method == 'DELETE':
-        user1 = Person.query.get(person_id)
-        if user1 is None:
-            raise APIException('User not found', status_code=404)
-        db.session.delete(user1)
-        db.session.commit()
-        return "ok", 200
 
-    return "Invalid Method", 404
+
 
 
 if __name__ == '__main__':
