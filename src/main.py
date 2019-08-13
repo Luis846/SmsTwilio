@@ -8,7 +8,9 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from models import db, Person, Queue
+from twilio import twiml
 from twilio.rest import Client
+from twilio.twiml.messaging_response import Message, MessagingResponse
 
 app = Flask(__name__)
 app.url_map.strict_slashes = False
@@ -20,15 +22,20 @@ CORS(app)
 
 queue = Queue()
 
+@app.route('/')
+def sitemap():
+    return generate_sitemap(app)
+
 @app.errorhandler(APIException)
 def handle_invalid_usage(error):
     return jsonify(error.to_dict()), error.status_code
 
 @app.route('/next')
-def sitemap():
+def sitgcbgcemap():
     removed_person = queue.dequeue()
-    account_sid = 'AC74597789a998d190319007e4bd2a36ad'
-    auth_token = '8102a60f2115a7a6cbf6ef740357a58c'
+
+    account_sid = ''
+    auth_token = ''
     client = Client(account_sid, auth_token)
 
     message = client.messages.create(
@@ -36,7 +43,9 @@ def sitemap():
                     from_='+12053154250',to= removed_person["phone"]
                 )
 
-    return generate_sitemap(app)
+    return "ok"
+
+
 
 @app.route('/new', methods=['POST'])
 def addNewPerson():
@@ -55,12 +64,12 @@ def addNewPerson():
     queue.enqueue(body)
     return "ok", 200
 
-@app.route('/sms/:phone')
+@app.route('/sms/:phone', methods=['GET'])
 def handle_person(item, phone):
     # Your Account Sid and Auth Token from twilio.com/console
     # DANGER! This is insecure. See http://twil.io/secure
     account_sid = 'AC74597789a998d190319007e4bd2a36ad'
-    auth_token = '8102a60f2115a7a6cbf6ef740357a58c'
+    auth_token = '7bce22d9c0281b73a0d5506eb9801a4a'
     client = Client(account_sid, auth_token)
 
     message = client.messages.create(
